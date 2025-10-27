@@ -18,6 +18,8 @@ spi\_bmi088/spi1/SPI1, bmi088\_accl\_cs, bmi088\_gyro\_cs, bmi088\_gyro\_int, pw
 - accl_topic_name:    "bmi088_accl"
 - target_temperature: 45
 - task_stack_depth:   2048
+  - camera_sync_pin_name: 用户引脚
+  - camera_sync_div: 分频系数
 
 
 ## 依赖 / Depends
