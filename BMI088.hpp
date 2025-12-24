@@ -25,8 +25,7 @@ constructor_args:
   - accl_topic_name: "bmi088_accl"
   - target_temperature: 45
   - task_stack_depth: 2048
-  - camera_sync_pin_name: CAMERA
-  - camera_sync_div: 10
+  - sync_freq: 200
 template_args: []
 required_hardware: spi_bmi088/spi1/SPI1 bmi088_accl_cs bmi088_gyro_cs bmi088_gyro_int pwm_bmi088_heat ramfs database
 depends: []
@@ -42,6 +41,7 @@ depends: []
 
 #include "app_framework.hpp"
 #include "gpio.hpp"
+#include "libxr_cb.hpp"
 #include "message.hpp"
 #include "pid.hpp"
 #include "pwm.hpp"
@@ -182,14 +182,14 @@ class BMI088 : public LibXR::Application {
     Deselect(device);
   }
 
-  BMI088(LibXR::HardwareContainer &hw, LibXR::ApplicationManager &app,
+  BMI088(LibXR::HardwareContainer& hw, LibXR::ApplicationManager& app,
          GyroFreq freq, AcclFreq accl_freq, GyroRange gyro_range,
-         AcclRange accl_range, LibXR::Quaternion<float> &&rotation,
-         LibXR::PID<float>::Param pid_param, const char *gyro_topic_name,
-         const char *accl_topic_name, float target_temperature,
-         size_t task_stack_depth, const char *camera_sync_pin_name = nullptr,
-         uint32_t camera_sync_div = 0)
-      : gyro_range_(gyro_range),
+         AcclRange accl_range, LibXR::Quaternion<float>&& rotation,
+         LibXR::PID<float>::Param pid_param, const char* gyro_topic_name,
+         const char* accl_topic_name, float target_temperature,
+         size_t task_stack_depth, uint32_t sync_freq)
+      : sync_freq_(sync_freq),
+        gyro_range_(gyro_range),
         accel_range_(accl_range),
         gyro_freq_(freq),
         accl_freq_(accl_freq),
@@ -208,37 +208,26 @@ class BMI088 : public LibXR::Application {
         cmd_file_(LibXR::RamFS::CreateFile("bmi088", CommandFunc, this)),
         gyro_data_key_(*hw.template FindOrExit<LibXR::Database>({"database"}),
                        "bmi088_gyro_data",
-                       Eigen::Matrix<float, 3, 1>(0.0, 0.0, 0.0)),
-        camera_sync_div_(camera_sync_div) {
+                       Eigen::Matrix<float, 3, 1>(0.0, 0.0, 0.0)) {
     app.Register(*this);
 
     hw.template FindOrExit<LibXR::RamFS>({"ramfs"})->Add(cmd_file_);
 
-    if (camera_sync_pin_name != nullptr && camera_sync_div_ > 0) {
-      camera_sync_pin_ = hw.template Find<LibXR::GPIO>({camera_sync_pin_name});
-      camera_sync_pin_->SetConfig(
-          {.direction = LibXR::GPIO::Direction::OUTPUT_PUSH_PULL,
-           .pull = LibXR::GPIO::Pull::NONE});
-      camera_sync_pin_->Write(false);
-    }
     int_gyro_->DisableInterrupt();
 
     auto gyro_int_cb = LibXR::GPIO::Callback::Create(
-        [](bool in_isr, BMI088 *bmi088) {
+        [](bool in_isr, BMI088* bmi088) {
+          bmi088->sync_counter_++;
           auto time = LibXR::Timebase::GetMicroseconds();
           bmi088->dt_gyro_ = time - bmi088->last_gyro_int_time_;
           bmi088->last_gyro_int_time_ = time;
-
-          if (bmi088->camera_sync_pin_ != nullptr &&
-              bmi088->camera_sync_div_ > 0) {
-            bmi088->camera_sync_counter_++;
-            if (bmi088->camera_sync_counter_ >= bmi088->camera_sync_div_ / 2) {
-              bmi088->camera_sync_state_ = !bmi088->camera_sync_state_;
-              bmi088->camera_sync_pin_->Write(bmi088->camera_sync_state_);
-              bmi088->camera_sync_counter_ = 0;
+          if (!bmi088->sync_callback_.Empty()) {
+            if (bmi088->sync_counter_ % bmi088->sync_freq_ == 0) {
+              bmi088->sync_callback_.Run(true);
+              bmi088->sync_counter_ = 0;
             }
           }
-
+          bmi088->sync_status_ = true;
           bmi088->new_data_.PostFromCallback(in_isr);
         },
         this);
@@ -258,7 +247,7 @@ class BMI088 : public LibXR::Application {
     thread_.Create(this, ThreadFunc, "bmi088_thread", task_stack_depth,
                    LibXR::Thread::Priority::REALTIME);
 
-    void (*temp_ctrl_func)(BMI088 *) = [](BMI088 *bmi088) {
+    void (*temp_ctrl_func)(BMI088*) = [](BMI088* bmi088) {
       bmi088->ControlTemperature(0.05f);
     };
 
@@ -266,6 +255,10 @@ class BMI088 : public LibXR::Application {
 
     LibXR::Timer::Add(temp_ctrl_task);
     LibXR::Timer::Start(temp_ctrl_task);
+  }
+
+  void RegisterSyncCallback(LibXR::Callback<> callback) {
+    sync_callback_ = std::move(callback);
   }
 
   bool Init() {
@@ -366,7 +359,7 @@ class BMI088 : public LibXR::Application {
     }
   }
 
-  static void ThreadFunc(BMI088 *bmi088) {
+  static void ThreadFunc(BMI088* bmi088) {
     /* Start PWM */
     bmi088->pwm_->SetConfig({30000});
     bmi088->pwm_->SetDutyCycle(0);
@@ -498,8 +491,16 @@ class BMI088 : public LibXR::Application {
                         gyro_data_key_.data_);
   }
 
+  bool GetsyncStatus() {
+    return sync_status_;
+  }
+
+  void SetsyncStatus(bool status) {
+    sync_status_ = status;
+  }
+
  private:
-  static int CommandFunc(BMI088 *bmi088, int argc, char **argv) {
+  static int CommandFunc(BMI088* bmi088, int argc, char** argv) {
     if (argc == 1) {
       LibXR::STDIO::Printf("Usage:\r\n");
       LibXR::STDIO::Printf(
@@ -610,7 +611,9 @@ class BMI088 : public LibXR::Application {
 
     return 0;
   }
-
+  uint32_t sync_counter_ = 0;
+  uint32_t sync_freq_ = 0;
+  bool sync_status_ = false;
   GyroRange gyro_range_ = GyroRange::DEG_2000DPS;
   AcclRange accel_range_ = AcclRange::ACCL_24G;
   GyroFreq gyro_freq_ = GyroFreq::GYRO_2000HZ_BW230HZ;
@@ -631,8 +634,10 @@ class BMI088 : public LibXR::Application {
   Eigen::Matrix<float, 3, 1> gyro_data_, accl_data_;
   LibXR::Topic topic_gyro_, topic_accl_;
   LibXR::GPIO *cs_accl_, *cs_gyro_, *int_gyro_;
-  LibXR::SPI *spi_;
-  LibXR::PWM *pwm_;
+  LibXR::SPI* spi_;
+  LibXR::PWM* pwm_;
+
+  LibXR::Callback<> sync_callback_;
 
   LibXR::Quaternion<float> rotation_;
 
@@ -645,10 +650,4 @@ class BMI088 : public LibXR::Application {
   LibXR::Database::Key<Eigen::Matrix<float, 3, 1>> gyro_data_key_;
 
   LibXR::Thread thread_;
-
-  // 相机同步输出
-  LibXR::GPIO *camera_sync_pin_ = nullptr;
-  uint32_t camera_sync_div_ = 0;
-  uint32_t camera_sync_counter_ = 0;
-  bool camera_sync_state_ = false;
 };
