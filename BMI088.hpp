@@ -176,11 +176,11 @@ class BMI088 : public LibXR::Application {
     Deselect(device);
   }
 
-  BMI088(LibXR::HardwareContainer &hw, LibXR::ApplicationManager &app,
+  BMI088(LibXR::HardwareContainer& hw, LibXR::ApplicationManager& app,
          GyroFreq freq, AcclFreq accl_freq, GyroRange gyro_range,
-         AcclRange accl_range, LibXR::Quaternion<float> &&rotation,
-         LibXR::PID<float>::Param pid_param, const char *gyro_topic_name,
-         const char *accl_topic_name, float target_temperature,
+         AcclRange accl_range, LibXR::Quaternion<float>&& rotation,
+         LibXR::PID<float>::Param pid_param, const char* gyro_topic_name,
+         const char* accl_topic_name, float target_temperature,
          size_t task_stack_depth)
       : gyro_range_(gyro_range),
         accel_range_(accl_range),
@@ -209,7 +209,7 @@ class BMI088 : public LibXR::Application {
     int_gyro_->DisableInterrupt();
 
     auto gyro_int_cb = LibXR::GPIO::Callback::Create(
-        [](bool in_isr, BMI088 *bmi088) {
+        [](bool in_isr, BMI088* bmi088) {
           auto time = LibXR::Timebase::GetMicroseconds();
           bmi088->dt_gyro_ = time - bmi088->last_gyro_int_time_;
           bmi088->last_gyro_int_time_ = time;
@@ -232,7 +232,7 @@ class BMI088 : public LibXR::Application {
     thread_.Create(this, ThreadFunc, "bmi088_thread", task_stack_depth,
                    LibXR::Thread::Priority::REALTIME);
 
-    void (*temp_ctrl_func)(BMI088 *) = [](BMI088 *bmi088) {
+    void (*temp_ctrl_func)(BMI088*) = [](BMI088* bmi088) {
       bmi088->ControlTemperature(0.05f);
     };
 
@@ -340,7 +340,7 @@ class BMI088 : public LibXR::Application {
     }
   }
 
-  static void ThreadFunc(BMI088 *bmi088) {
+  static void ThreadFunc(BMI088* bmi088) {
     /* Start PWM */
     bmi088->pwm_->SetConfig({30000});
     bmi088->pwm_->SetDutyCycle(0);
@@ -473,7 +473,7 @@ class BMI088 : public LibXR::Application {
   }
 
  private:
-  static int CommandFunc(BMI088 *bmi088, int argc, char **argv) {
+  static int CommandFunc(BMI088* bmi088, int argc, char** argv) {
     if (argc == 1) {
       LibXR::STDIO::Printf("Usage:\r\n");
       LibXR::STDIO::Printf(
@@ -605,8 +605,8 @@ class BMI088 : public LibXR::Application {
   Eigen::Matrix<float, 3, 1> gyro_data_, accl_data_;
   LibXR::Topic topic_gyro_, topic_accl_;
   LibXR::GPIO *cs_accl_, *cs_gyro_, *int_gyro_;
-  LibXR::SPI *spi_;
-  LibXR::PWM *pwm_;
+  LibXR::SPI* spi_;
+  LibXR::PWM* pwm_;
 
   LibXR::Quaternion<float> rotation_;
 
