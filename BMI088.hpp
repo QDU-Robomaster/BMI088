@@ -90,6 +90,10 @@ depends: []
 #define BMI088_ACCL_RX_BUFF_LEN (19)
 #define BMI088_GYRO_RX_BUFF_LEN (6)
 
+/**
+ * @brief BMI088 6 轴 IMU 驱动模块
+ * @details 提供 BMI088 初始化、数据采集、温控与 Topic 发布能力。
+ */
 class BMI088 : public LibXR::Application {
  public:
   enum class Device : uint8_t { ACCELMETER, GYROSCOPE };
@@ -176,6 +180,21 @@ class BMI088 : public LibXR::Application {
     Deselect(device);
   }
 
+  /**
+   * @brief 构造 BMI088 模块
+   * @param hw 硬件容器
+   * @param app 应用管理器
+   * @param freq 陀螺仪频率配置
+   * @param accl_freq 加速度计频率配置
+   * @param gyro_range 陀螺仪量程配置
+   * @param accl_range 加速度计量程配置
+   * @param rotation 坐标旋转四元数
+   * @param pid_param 温控 PID 参数
+   * @param gyro_topic_name 陀螺仪 Topic 名称
+   * @param accl_topic_name 加速度计 Topic 名称
+   * @param target_temperature 目标温度
+   * @param task_stack_depth 线程栈深
+   */
   BMI088(LibXR::HardwareContainer& hw, LibXR::ApplicationManager& app,
          GyroFreq freq, AcclFreq accl_freq, GyroRange gyro_range,
          AcclRange accl_range, LibXR::Quaternion<float>&& rotation,
@@ -242,6 +261,10 @@ class BMI088 : public LibXR::Application {
     LibXR::Timer::Start(temp_ctrl_task);
   }
 
+  /**
+   * @brief 初始化 BMI088
+   * @return bool 初始化成功返回 true
+   */
   bool Init() {
     WriteSingle(Device::ACCELMETER, BMI088_REG_ACCL_SOFTRESET, 0xB6);
     WriteSingle(Device::GYROSCOPE, BMI088_REG_GYRO_SOFTRESET, 0xB6);
@@ -299,6 +322,9 @@ class BMI088 : public LibXR::Application {
     return true;
   }
 
+  /**
+   * @brief 监控回调
+   */
   void OnMonitor(void) override {
     if (std::isinf(gyro_data_.x()) || std::isinf(gyro_data_.y()) ||
         std::isinf(gyro_data_.z()) || std::isinf(accl_data_.x()) ||
@@ -340,6 +366,10 @@ class BMI088 : public LibXR::Application {
     }
   }
 
+  /**
+   * @brief 采集线程函数
+   * @param bmi088 模块实例
+   */
   static void ThreadFunc(BMI088* bmi088) {
     /* Start PWM */
     bmi088->pwm_->SetConfig({30000});
@@ -360,6 +390,10 @@ class BMI088 : public LibXR::Application {
     }
   }
 
+  /**
+   * @brief 温度控制函数
+   * @param dt 控制周期（s）
+   */
   void ControlTemperature(float dt) {
     auto duty_cycle =
         pid_heat_.Calculate(target_temperature_, temperature_, dt);
