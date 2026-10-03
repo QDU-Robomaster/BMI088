@@ -68,61 +68,102 @@ depends: []
 #define BMI088_GYRO_RX_BUFF_LEN (6)
 
 /**
- * @brief BMI088 6 轴 IMU 驱动模块
- * @details 提供 BMI088 初始化、数据采集、温控与 Topic 发布能力。
+ * @brief BMI088 6 轴 IMU 的 SPI 驱动模块：陀螺仪与加速度计采样、Topic 发布、加热恒温与陀螺仪零偏校准。
+ *        SPI driver Module for the BMI088 6-axis IMU: gyroscope and accelerometer
+ *        sampling, Topic publishing, heater temperature control and gyroscope offset
+ *        calibration.
  */
 class BMI088
 {
  public:
+  /**
+   * @brief BMI088 内部的两个传感器件。
+   *        The two sensor devices inside the BMI088.
+   */
   enum class Device : uint8_t
   {
-    ACCELMETER,
-    GYROSCOPE
+    ACCELMETER,  ///< 加速度计
+                 ///< Accelerometer
+    GYROSCOPE    ///< 陀螺仪
+                 ///< Gyroscope
   };
 
+  /**
+   * @brief 陀螺仪量程。
+   *        Gyroscope range.
+   */
   enum class GyroRange : uint8_t
   {
-    DEG_2000DPS = 0x00,
-    DEG_1000DPS = 0x01,
-    DEG_500DPS = 0x02,
-    DEG_250DPS = 0x03,
-    DEG_125DPS = 0x04
+    DEG_2000DPS = 0x00,  ///< ±2000 °/s
+    DEG_1000DPS = 0x01,  ///< ±1000 °/s
+    DEG_500DPS = 0x02,   ///< ±500 °/s
+    DEG_250DPS = 0x03,   ///< ±250 °/s
+    DEG_125DPS = 0x04    ///< ±125 °/s
   };
 
+  /**
+   * @brief 加速度计量程。
+   *        Accelerometer range.
+   */
   enum class AcclRange : uint8_t
   {
-    ACCL_3G = 0x00,
-    ACCL_6G = 0x01,
-    ACCL_12G = 0x02,
-    ACCL_24G = 0x03
+    ACCL_3G = 0x00,   ///< ±3 g
+    ACCL_6G = 0x01,   ///< ±6 g
+    ACCL_12G = 0x02,  ///< ±12 g
+    ACCL_24G = 0x03   ///< ±24 g
   };
 
+  /**
+   * @brief 陀螺仪输出频率与带宽。
+   *        Gyroscope output frequency and bandwidth.
+   */
   enum class GyroFreq : uint8_t
   {
-    GYRO_2000HZ_BW532HZ = 0x00,
-    GYRO_2000HZ_BW230HZ = 0x01,
-    GYRO_1000HZ_BW116HZ = 0x02,
-    GYRO_400HZ_BW46HZ = 0x03,
-    GYRO_200HZ_BW23HZ = 0x04,
-    GYRO_100HZ_BW12HZ = 0x05,
-    GYRO_200HZ_BW64HZ = 0x06,
-    GYRO_100HZ_BW32HZ = 0x07,
+    GYRO_2000HZ_BW532HZ = 0x00,  ///< 2000 Hz，带宽 532 Hz
+                                 ///< 2000 Hz, bandwidth 532 Hz
+    GYRO_2000HZ_BW230HZ = 0x01,  ///< 2000 Hz，带宽 230 Hz
+                                 ///< 2000 Hz, bandwidth 230 Hz
+    GYRO_1000HZ_BW116HZ = 0x02,  ///< 1000 Hz，带宽 116 Hz
+                                 ///< 1000 Hz, bandwidth 116 Hz
+    GYRO_400HZ_BW46HZ = 0x03,    ///< 400 Hz，带宽 46 Hz
+                                 ///< 400 Hz, bandwidth 46 Hz
+    GYRO_200HZ_BW23HZ = 0x04,    ///< 200 Hz，带宽 23 Hz
+                                 ///< 200 Hz, bandwidth 23 Hz
+    GYRO_100HZ_BW12HZ = 0x05,    ///< 100 Hz，带宽 12 Hz
+                                 ///< 100 Hz, bandwidth 12 Hz
+    GYRO_200HZ_BW64HZ = 0x06,    ///< 200 Hz，带宽 64 Hz
+                                 ///< 200 Hz, bandwidth 64 Hz
+    GYRO_100HZ_BW32HZ = 0x07,    ///< 100 Hz，带宽 32 Hz
+                                 ///< 100 Hz, bandwidth 32 Hz
   };
 
+  /**
+   * @brief 加速度计输出频率。
+   *        Accelerometer output frequency.
+   */
   enum class AcclFreq : uint8_t
   {
-    ACCL_1600HZ = 0x0C,
-    ACCL_800HZ = 0x0B,
-    ACCL_400HZ = 0x0A,
-    ACCL_200HZ = 0x09,
-    ACCL_100HZ = 0x08,
-    ACCL_50HZ = 0x07,
-    ACCL_25HZ = 0x06,
-    ACCL_12_5HZ = 0x05
+    ACCL_1600HZ = 0x0C,  ///< 1600 Hz
+    ACCL_800HZ = 0x0B,   ///< 800 Hz
+    ACCL_400HZ = 0x0A,   ///< 400 Hz
+    ACCL_200HZ = 0x09,   ///< 200 Hz
+    ACCL_100HZ = 0x08,   ///< 100 Hz
+    ACCL_50HZ = 0x07,    ///< 50 Hz
+    ACCL_25HZ = 0x06,    ///< 25 Hz
+    ACCL_12_5HZ = 0x05   ///< 12.5 Hz
   };
 
+  /// 角度转弧度系数
+  /// Degree-to-radian factor
   static constexpr float M_DEG2RAD_MULT = 0.01745329251f;
 
+  /**
+   * @brief 拉低指定器件的片选。
+   *        Pull the chip select of the given device low.
+   *
+   * @param device 目标器件。
+   *               Target device.
+   */
   void Select(Device device)
   {
     if (device == Device::ACCELMETER)
@@ -135,6 +176,13 @@ class BMI088
     }
   }
 
+  /**
+   * @brief 拉高指定器件的片选。
+   *        Pull the chip select of the given device high.
+   *
+   * @param device 目标器件。
+   *               Target device.
+   */
   void Deselect(Device device)
   {
     if (device == Device::ACCELMETER)
@@ -147,6 +195,17 @@ class BMI088
     }
   }
 
+  /**
+   * @brief 写单个寄存器，写完后休眠 1 ms。
+   *        Write a single register and sleep for 1 ms afterwards.
+   *
+   * @param device 目标器件。
+   *               Target device.
+   * @param reg 寄存器地址。
+   *            Register address.
+   * @param data 写入的值。
+   *             Value to write.
+   */
   void WriteSingle(Device device, uint8_t reg, uint8_t data)
   {
     Select(device);
@@ -157,6 +216,18 @@ class BMI088
     LibXR::Thread::Sleep(1);
   }
 
+  /**
+   * @brief 读单个寄存器。
+   *        Read a single register.
+   *
+   * @param device 目标器件。
+   *               Target device.
+   * @param reg 寄存器地址。
+   *            Register address.
+   * @return 寄存器的值；加速度计的返回数据中第一个字节为 dummy byte，取第二个字节。
+   *         Register value; the first byte returned by the accelerometer is a dummy
+   *         byte, so the second byte is used.
+   */
   uint8_t ReadSingle(Device device, uint8_t reg)
   {
     Select(device);
@@ -173,6 +244,18 @@ class BMI088
     }
   }
 
+  /**
+   * @brief 从起始寄存器连续读取 len 字节到内部读写缓冲区（容量 20 字节）。
+   *        Read len consecutive bytes from the start register into the internal
+   *        read/write buffer (capacity 20 bytes).
+   *
+   * @param device 目标器件。
+   *               Target device.
+   * @param reg 起始寄存器地址。
+   *            Start register address.
+   * @param len 读取字节数。
+   *            Number of bytes to read.
+   */
   void Read(Device device, uint8_t reg, uint8_t len)
   {
     Select(device);
@@ -180,23 +263,56 @@ class BMI088
     Deselect(device);
   }
 
+  /**
+   * @brief BMI088 配置参数。
+   *        BMI088 configuration parameters.
+   */
   struct Param
   {
-    GyroFreq gyro_freq;  ///< 陀螺仪频率配置
-    AcclFreq accl_freq;  ///< 加速度计频率配置
-    GyroRange gyro_range;  ///< 陀螺仪量程配置
-    AcclRange accl_range;  ///< 加速度计量程配置
-    LibXR::Quaternion<float> rotation;  ///< 坐标旋转四元数
-    LibXR::PID<float>::Param pid_param;  ///< 温控 PID 参数
-    const char* gyro_topic_name;  ///< 陀螺仪 Topic 名称
-    const char* accl_topic_name;  ///< 加速度计 Topic 名称
-    float target_temperature;  ///< 目标温度
+    GyroFreq gyro_freq;  ///< 陀螺仪输出频率与带宽
+    ///< Gyroscope output frequency and bandwidth
+    AcclFreq accl_freq;  ///< 加速度计输出频率
+    ///< Accelerometer output frequency
+    GyroRange gyro_range;  ///< 陀螺仪量程
+    ///< Gyroscope range
+    AcclRange accl_range;  ///< 加速度计量程
+    ///< Accelerometer range
+    LibXR::Quaternion<float> rotation;  ///< 传感器到应用坐标系的单位四元数 (w, x, y, z)
+    ///< Unit quaternion from the sensor frame to the application frame (w, x, y, z)
+    LibXR::PID<float>::Param pid_param;  ///< 温控 PID 参数，输出作为 PWM 占空比
+    ///< Temperature-control PID parameters, the output is used as the PWM duty cycle
+    const char* gyro_topic_name;  ///< 角速度 Topic 名称
+    ///< Angular-velocity Topic name
+    const char* accl_topic_name;  ///< 加速度 Topic 名称
+    ///< Acceleration Topic name
+    float target_temperature;  ///< 目标温度 (°C)
+    ///< Target temperature (°C)
     size_t task_stack_depth;  ///< 线程栈深
+    ///< Thread stack depth
   };
 
   /**
-   * @brief 构造 BMI088 模块
-   * @param param Value configuration.
+   * @brief 构造 BMI088：注册 RamFS 命令与陀螺仪中断，初始化传感器，创建采样线程与温控定时器任务。
+   *        Construct BMI088: register the RamFS command and the gyroscope interrupt,
+   *        initialize the sensor, and create the sampling thread and the temperature
+   *        control timer task.
+   *
+   * @param accl_cs 加速度计片选 GPIO。
+   *                Accelerometer chip-select GPIO.
+   * @param gyro_cs 陀螺仪片选 GPIO。
+   *                Gyroscope chip-select GPIO.
+   * @param gyro_int 陀螺仪 INT3 数据就绪中断 GPIO。
+   *                 Gyroscope INT3 data-ready interrupt GPIO.
+   * @param spi 连接 BMI088 的 SPI。
+   *            SPI connected to the BMI088.
+   * @param heater_pwm 加热电阻的 PWM。
+   *                   PWM of the heating resistor.
+   * @param database 保存陀螺仪零偏的数据库。
+   *                 Database that stores the gyroscope offset.
+   * @param ramfs 注册 bmi088 命令的 RamFS。
+   *              RamFS in which the bmi088 command is registered.
+   * @param param 配置参数。
+   *              Configuration parameters.
    */
   BMI088(
       LibXR::GPIO& accl_cs,
@@ -268,8 +384,12 @@ class BMI088
   }
 
   /**
-   * @brief 初始化 BMI088
-   * @return bool 初始化成功返回 true
+   * @brief 软复位两个传感器、校验芯片 ID，写入量程与输出频率，并使能陀螺仪 data-ready 中断。
+   *        Soft-reset both sensors, check the chip IDs, write the range and output
+   *        frequency, and enable the gyroscope data-ready interrupt.
+   *
+   * @return 初始化成功返回 true，芯片 ID 不符返回 false。
+   *         True when the initialization succeeds, false when a chip ID does not match.
    */
   bool Init()
   {
@@ -332,7 +452,10 @@ class BMI088
   }
 
   /**
-   * @brief 监控回调
+   * @brief 监控回调：数据出现 NaN / Inf 时告警，陀螺仪中断间隔与理想周期相差超过 0.3 ms 时告警。
+   *        Monitor callback: warn when the data contains NaN / Inf, and warn when the
+   *        gyroscope interrupt interval differs from the ideal period by more than
+   *        0.3 ms.
    */
   void OnMonitor(void)
   {
@@ -378,8 +501,12 @@ class BMI088
   }
 
   /**
-   * @brief 采集线程函数
-   * @param bmi088 模块实例
+   * @brief 采样线程函数：使能加热 PWM，之后每次陀螺仪中断读取并发布一组数据。
+   *        Sampling thread function: enable the heater PWM, then read and publish one
+   *        sample on every gyroscope interrupt.
+   *
+   * @param bmi088 模块实例。
+   *               Module instance.
    */
   static void ThreadFunc(BMI088* bmi088)
   {
@@ -409,8 +536,12 @@ class BMI088
   }
 
   /**
-   * @brief 温度控制函数
-   * @param dt 控制周期（s）
+   * @brief 以 target_temperature 为目标、加速度计芯片温度为反馈计算 PID，输出设为 PWM 占空比。
+   *        Compute the PID with target_temperature as the target and the accelerometer
+   *        chip temperature as the feedback, and set the output as the PWM duty cycle.
+   *
+   * @param dt 控制周期，单位 s。
+   *           Control period in s.
    */
   void ControlTemperature(float dt)
   {
@@ -418,16 +549,32 @@ class BMI088
     pwm_->SetDutyCycle(duty_cycle);
   }
 
+  /**
+   * @brief 读取加速度计数据（含温度）到内部缓冲区。
+   *        Read the accelerometer data (including the temperature) into the internal
+   *        buffer.
+   */
   void RecvAccel(void)
   {
     Read(Device::ACCELMETER, BMI088_REG_ACCL_X_LSB, BMI088_ACCL_RX_BUFF_LEN);
   }
 
+  /**
+   * @brief 读取陀螺仪数据到内部缓冲区。
+   *        Read the gyroscope data into the internal buffer.
+   */
   void RecvGyro(void)
   {
     Read(Device::GYROSCOPE, BMI088_REG_GYRO_X_LSB, BMI088_GYRO_RX_BUFF_LEN);
   }
 
+  /**
+   * @brief 获取当前量程下加速度计每 LSB 对应的加速度。
+   *        Get the acceleration per LSB of the accelerometer in the current range.
+   *
+   * @return 每 LSB 的加速度，单位 g。
+   *         Acceleration per LSB in g.
+   */
   float GetAcclLSB(void)
   {
     switch (accel_range_)
@@ -450,6 +597,12 @@ class BMI088
     }
   }
 
+  /**
+   * @brief 解析 RecvAccel 读取的数据：更新芯片温度，并把加速度换算为 g、乘以 rotation 后保存；原始值全为 0 时保留上一次的加速度。
+   *        Parse the data read by RecvAccel: update the chip temperature, convert the
+   *        acceleration to g, multiply it by rotation and store it; the previous
+   *        acceleration is kept when the raw values are all 0.
+   */
   void ParseAccelData(void)
   {
     std::array<int16_t, 3> raw_int16;
@@ -482,6 +635,13 @@ class BMI088
     accl_data_ = rotation_ * Eigen::Matrix<float, 3, 1>(raw[0], raw[1], raw[2]);
   }
 
+  /**
+   * @brief 获取当前量程下陀螺仪每 LSB 对应的角速度。
+   *        Get the angular velocity per LSB of the gyroscope in the current range.
+   *
+   * @return 每 LSB 的角速度，单位 °/s。
+   *         Angular velocity per LSB in °/s.
+   */
   float GetGyroLSB()
   {
     switch (gyro_range_)
@@ -504,6 +664,13 @@ class BMI088
     }
   }
 
+  /**
+   * @brief 解析 RecvGyro 读取的数据：换算为 rad/s，减去零偏后乘以 rotation 并保存；校准期间累加原始值，原始值全为 0 时保留上一次的角速度。
+   *        Parse the data read by RecvGyro: convert to rad/s, subtract the offset,
+   *        multiply by rotation and store it; the raw values are accumulated during the
+   *        calibration, and the previous angular velocity is kept when the raw values
+   *        are all 0.
+   */
   void ParseGyroData(void)
   {
     std::array<int16_t, 3> raw_int16;
