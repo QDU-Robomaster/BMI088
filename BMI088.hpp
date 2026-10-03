@@ -2,7 +2,7 @@
 
 // clang-format off
 /* === MODULE MANIFEST V2 ===
-module_description: 博世 BMI088 6 轴 IMU 的 SPI 驱动模块：陀螺仪与加速度计采样、Topic 发布、加热恒温与陀螺仪零偏校准 / SPI driver Module for the Bosch BMI088 6-axis IMU: gyroscope and accelerometer sampling, Topic publishing, heater temperature control and gyroscope offset calibration
+module_description: 博世 BMI088 6 轴 IMU 的 SPI 驱动模块：陀螺仪与加速度计采样、Topic 发布、加热恒温与陀螺仪零偏校准 / SPI driver Module for the Bosch BMI088 6-axis IMU with gyroscope and accelerometer sampling, Topic publishing, heater temperature control and gyroscope offset calibration
 depends: []
 === END MANIFEST === */
 // clang-format on
