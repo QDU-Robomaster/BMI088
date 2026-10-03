@@ -2,14 +2,10 @@
 
 // clang-format off
 /* === MODULE MANIFEST V2 ===
-module_description: 博世 BMI088 6 轴惯性测量单元（IMU）的驱动模块 / Driver module for Bosch BMI088
-  6-axis Inertial Measurement Unit (IMU)
+module_description: 博世 BMI088 6 轴 IMU 的 SPI 驱动模块：陀螺仪与加速度计采样、Topic 发布、加热恒温与陀螺仪零偏校准 / SPI driver Module for the Bosch BMI088 6-axis IMU: gyroscope and accelerometer sampling, Topic publishing, heater temperature control and gyroscope offset calibration
 depends: []
 === END MANIFEST === */
 // clang-format on
-
-/* Recommended Website for calculate rotation:
-  https://www.andre-gaschler.com/rotationconverter/ */
 
 #include <memory>
 
@@ -157,7 +153,7 @@ class BMI088
     spi_->MemWrite(reg, data, op_spi_);
     Deselect(device);
 
-    /* For accelmeter, two write operations need at least 2us */
+    /* For the accelerometer, two write operations need at least 2 us. */
     LibXR::Thread::Sleep(1);
   }
 
@@ -307,7 +303,7 @@ class BMI088
     WriteSingle(Device::ACCELMETER, BMI088_REG_ACCL_RANGE,
                 static_cast<uint8_t>(accel_range_));
 
-    /* Turn on accl. Now we can read data. */
+    /* Power on the accelerometer. */
     WriteSingle(Device::ACCELMETER, BMI088_REG_ACCL_PWR_CTRL, 0x04);
     LibXR::Thread::Sleep(50);
 
@@ -375,8 +371,6 @@ class BMI088
         break;
     }
 
-    /* Use other timer as HAL timebase (Because the priority of SysTick is
-  lowest) and set the priority to the highest to avoid this issue */
     if (std::fabs(ideal_gyro_dt - dt_gyro_.ToSecondf()) > 0.0003f)
     {
       XR_LOG_WARN("BMI088 Frequency Error: %6f", dt_gyro_.ToSecondf());
